@@ -31,6 +31,7 @@ class LEVELDB_EXPORT Cache;
 // of Cache uses a least-recently-used eviction policy.
 LEVELDB_EXPORT Cache* NewLRUCache(size_t capacity);
 
+// 抽象的缓存接口
 class LEVELDB_EXPORT Cache {
  public:
   Cache() = default;
@@ -54,6 +55,12 @@ class LEVELDB_EXPORT Cache {
   //
   // When the inserted entry is no longer needed, the key and
   // value will be passed to "deleter".
+  //
+  // 将key->value的映射插入到缓存中，并赋于特定charge（针对总的缓存容量）
+  //
+  // 返回与映射对应的句柄。当返回的mapinng不再使用时，调用者必须调用 this->Release(handle)
+  //
+  // 当不再需要插入的条目时，key和value将传递给“deleter”
   virtual Handle* Insert(const Slice& key, void* value, size_t charge,
                          void (*deleter)(const Slice& key, void* value)) = 0;
 
@@ -75,9 +82,8 @@ class LEVELDB_EXPORT Cache {
   // REQUIRES: handle must have been returned by a method on *this.
   virtual void* Value(Handle* handle) = 0;
 
-  // If the cache contains entry for key, erase it.  Note that the
-  // underlying entry will be kept around until all existing handles
-  // to it have been released.
+  // 若缓存包含该key，则erase掉. 
+  // 注意，底层的entry将保留知道所有存在的handle被release
   virtual void Erase(const Slice& key) = 0;
 
   // Return a new numeric id.  May be used by multiple clients who are

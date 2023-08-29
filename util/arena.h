@@ -13,6 +13,7 @@
 
 namespace leveldb {
 
+// 只分配，不在运行时回收（仅在析构时回收）
 class Arena {
  public:
   Arena();
