@@ -12,18 +12,23 @@
 // Reads require a guarantee that the SkipList will not be destroyed
 // while the read is in progress.  Apart from that, reads progress
 // without any internal locking or synchronization.
+// 写入需要外部同步，很可能是互斥体。
+// 读取需要保证在读取过程中 SkipList 不会被破坏。除此之外，无需任何内部锁定或同步即可读取进度
 //
 // Invariants:
 //
 // (1) Allocated nodes are never deleted until the SkipList is
 // destroyed.  This is trivially guaranteed by the code since we
 // never delete any skip list nodes.
+// 在 SkipList 被销毁之前，分配的节点永远不会被删除。代码可以保证这一点，因为我们从不删除任何跳过列表节点。
 //
 // (2) The contents of a Node except for the next/prev pointers are
 // immutable after the Node has been linked into the SkipList.
 // Only Insert() modifies the list, and it is careful to initialize
 // a node and use release-stores to publish the nodes in one or
 // more lists.
+// 在将 Node 链接到 SkipList 后，Node 的内容（下一个/上一个指针除外）是不可变的。
+// 只有Insert()会修改列表，并且会小心地初始化一个节点并使用release-store来发布一个或多个列表中的节点。
 //
 // ... prev vs. next pointer ordering ...
 
@@ -180,7 +185,7 @@ template <typename Key, class Comparator>
 typename SkipList<Key, Comparator>::Node* SkipList<Key, Comparator>::NewNode(
     const Key& key, int height) {
   char* const node_memory = arena_->AllocateAligned(
-      sizeof(Node) + sizeof(std::atomic<Node*>) * (height - 1));
+      sizeof(Node) + sizeof(std::atomic<Node*>) * (height - 1));  // -1是因为sizeof(Node)已经申请了一层(next[1])
   return new (node_memory) Node(key);
 }
 
