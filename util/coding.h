@@ -51,6 +51,11 @@ char* EncodeVarint64(char* dst, uint64_t value);
 // Lower-level versions of Put... that write directly into a character buffer
 // REQUIRES: dst has enough space for the value being written
 
+// x86-64 gcc 12.2 -O3汇编如下
+// EncodeFixed32(char*, unsigned int):
+//         movl    %esi, (%rdi)
+//         ret
+// memcpy(dst, &value, sizeof(value));产生相同的结果
 inline void EncodeFixed32(char* dst, uint32_t value) {
   uint8_t* const buffer = reinterpret_cast<uint8_t*>(dst);
 
@@ -61,6 +66,11 @@ inline void EncodeFixed32(char* dst, uint32_t value) {
   buffer[3] = static_cast<uint8_t>(value >> 24);
 }
 
+// x86-64 gcc 12.2 -O3汇编如下
+// EncodeFixed64(char*, unsigned long):
+//         movq    %rsi, (%rdi)
+//         ret
+// memcpy(dst, &value, sizeof(value));产生相同的结果
 inline void EncodeFixed64(char* dst, uint64_t value) {
   uint8_t* const buffer = reinterpret_cast<uint8_t*>(dst);
 
@@ -78,6 +88,11 @@ inline void EncodeFixed64(char* dst, uint64_t value) {
 // Lower-level versions of Get... that read directly from a character buffer
 // without any bounds checking.
 
+// x86-64 gcc 12.2 -O3汇编如下
+// DecodeFixed32(char const*):
+//         movl    (%rdi), %eax
+//         ret
+// return *(uint32_t*)ptr;产生相同的结果
 inline uint32_t DecodeFixed32(const char* ptr) {
   const uint8_t* const buffer = reinterpret_cast<const uint8_t*>(ptr);
 
@@ -88,6 +103,11 @@ inline uint32_t DecodeFixed32(const char* ptr) {
          (static_cast<uint32_t>(buffer[3]) << 24);
 }
 
+// x86-64 gcc 12.2 -O3汇编如下
+// DecodeFixed64(char const*):
+//         movq    (%rdi), %rax
+//         ret
+// return *(uint64_t*)ptr;产生相同的结果
 inline uint64_t DecodeFixed64(const char* ptr) {
   const uint8_t* const buffer = reinterpret_cast<const uint8_t*>(ptr);
 

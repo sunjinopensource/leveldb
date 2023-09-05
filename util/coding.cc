@@ -18,6 +18,8 @@ void PutFixed64(std::string* dst, uint64_t value) {
   dst->append(buf, sizeof(buf));
 }
 
+// 每7位保存一个字节，若有后续，则将该字节高位置1
+// 应该类似protobuf
 char* EncodeVarint32(char* dst, uint32_t v) {
   // Operate on characters as unsigneds
   uint8_t* ptr = reinterpret_cast<uint8_t*>(dst);
@@ -25,7 +27,7 @@ char* EncodeVarint32(char* dst, uint32_t v) {
   if (v < (1 << 7)) {
     *(ptr++) = v;
   } else if (v < (1 << 14)) {
-    *(ptr++) = v | B;
+    *(ptr++) = v | B;  // 1xxxxxxx (1低7位)
     *(ptr++) = v >> 7;
   } else if (v < (1 << 21)) {
     *(ptr++) = v | B;
