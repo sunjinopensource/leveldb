@@ -131,6 +131,11 @@ class InternalFilterPolicy : public FilterPolicy {
 // Modules in this directory should keep internal keys wrapped inside
 // the following class instead of plain strings so that we do not
 // incorrectly use string comparisons instead of an InternalKeyComparator.
+//
+// 此目录中的模块应将 internal keys 包装在以下类中而不是纯字符串中
+// 以防错误地使用字符串比较而非 InternalKeyComparator
+//
+// internal_key => [ user key (string) | sequence (7 bytes) | type (1 byte) ]
 class InternalKey {
  private:
   std::string rep_;
@@ -168,6 +173,7 @@ inline int InternalKeyComparator::Compare(const InternalKey& a,
   return Compare(a.Encode(), b.Encode());
 }
 
+// internal_key => | user key (string) | sequence (7 bytes) | type (1 byte) |
 inline bool ParseInternalKey(const Slice& internal_key,
                              ParsedInternalKey* result) {
   const size_t n = internal_key.size();

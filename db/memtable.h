@@ -21,6 +21,8 @@ class MemTable {
  public:
   // MemTables are reference counted.  The initial reference count
   // is zero and the caller must call Ref() at least once.
+  // 
+  // MemTables 是引用计数的。初始计数为0，调用者必须至少调用一次 Ref()
   explicit MemTable(const InternalKeyComparator& comparator);
 
   MemTable(const MemTable&) = delete;
