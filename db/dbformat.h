@@ -187,6 +187,10 @@ inline bool ParseInternalKey(const Slice& internal_key,
 }
 
 // A helper class useful for DBImpl::Get()
+//
+// 对于短key，直接用space_进行存储，否则动态分配内存
+//  | internal_key_size | internal_key........|
+// start_            kstart_                 end_
 class LookupKey {
  public:
   // Initialize *this for looking up user_key at a snapshot with
