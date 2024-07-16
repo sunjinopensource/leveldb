@@ -40,12 +40,20 @@ namespace {
 
 // An entry is a variable length heap-allocated structure.  Entries
 // are kept in a circular doubly linked list ordered by access time.
+// 每个缓存项有一个“in_cache”，表明缓存是否具有该项的引用
+//  在不将条目传递给其“删除器”的情况下，这可能变为 false 的唯一方法是通过 Erase()、在插入具有重复键的元素时通过 Insert() 或在销毁缓存时。
+
+// 缓存有两个链表。缓存项只会在其中一个链表中。客户端仍引用但已从缓存中删除的项不在这两个来链表中。
+// - in-use:  包含客户当前引用的项目，没有特定的顺序。（此链表用于不变检查。如果我们删除检查，则原本位于此链表中的元素可能会保留为断开连接的单例列表。）
+// - LRU:  包含客户端当前未引用的项，按 LRU 顺序 当 Ref() 和 Unref() 方法检测到缓存中的元素获取或丢失其唯一的外部引用时，元素将在这些列表之间移动。
+
+// 缓存项走堆分配，且长度可变，保存在按访问时间排序的循环双向链表
 struct LRUHandle {
   void* value;
   void (*deleter)(const Slice&, void* value);
-  LRUHandle* next_hash;
-  LRUHandle* next;
-  LRUHandle* prev;
+  LRUHandle* next_hash;  // 用于哈希表（拉链）
+  LRUHandle* next;  // 用于LRU链表
+  LRUHandle* prev;  // 用于LRU链表
   size_t charge;  // TODO(opt): Only allow uint32_t?
   size_t key_length;
   bool in_cache;     // Whether entry is in the cache.
@@ -67,6 +75,8 @@ struct LRUHandle {
 // table implementations in some of the compiler/runtime combinations
 // we have tested.  E.g., readrandom speeds up by ~5% over the g++
 // 4.4.3's builtin hashtable.
+// 标准的拉链法哈希表实现
+// 注意：大量使用二级指针（LRUHandle**）来操作拉链（LRUHandle::next_hash）
 class HandleTable {
  public:
   HandleTable() : length_(0), elems_(0), list_(nullptr) { Resize(); }
@@ -105,14 +115,15 @@ class HandleTable {
  private:
   // The table consists of an array of buckets where each bucket is
   // a linked list of cache entries that hash into the bucket.
-  uint32_t length_;
-  uint32_t elems_;
-  LRUHandle** list_;
+  uint32_t length_;  // 数组长度
+  uint32_t elems_;  // 当前元素数量
+  LRUHandle** list_;  // 数组（存储单链头），新元素总是位于链头
 
   // Return a pointer to slot that points to a cache entry that
   // matches key/hash.  If there is no such cache entry, return a
   // pointer to the trailing slot in the corresponding linked list.
   // 返回一个指向槽的指针，该槽指向与键/哈希匹配的缓存条目。如果没有这样的缓存条目，则返回指向相应链表中尾随槽的指针。
+  // 找到key对应的Handle，若找不到，则返回哈希链上最后一个的next
   LRUHandle** FindPointer(const Slice& key, uint32_t hash) {
     LRUHandle** ptr = &list_[hash & (length_ - 1)];
     while (*ptr != nullptr && ((*ptr)->hash != hash || key != (*ptr)->key())) {
@@ -129,6 +140,8 @@ class HandleTable {
     LRUHandle** new_list = new LRUHandle*[new_length];
     memset(new_list, 0, sizeof(new_list[0]) * new_length);
     uint32_t count = 0;
+    
+    // 将老表中的每一项，插入到新表中
     for (uint32_t i = 0; i < length_; i++) {
       LRUHandle* h = list_[i];
       while (h != nullptr) {
@@ -272,7 +285,7 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
   MutexLock l(&mutex_);
 
   LRUHandle* e =
-      reinterpret_cast<LRUHandle*>(malloc(sizeof(LRUHandle) - 1 + key.size()));
+      reinterpret_cast<LRUHandle*>(malloc(sizeof(LRUHandle) - 1 + key.size()));  // jinsun：这里若用0长数组，就无需-1
   e->value = value;
   e->deleter = deleter;
   e->charge = charge;
