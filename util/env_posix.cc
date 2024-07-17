@@ -291,10 +291,11 @@ class PosixWritableFile final : public WritableFile {
   }
 
   Status Append(const Slice& data) override {
+    // 剩余要写的尺寸和数据
     size_t write_size = data.size();
     const char* write_data = data.data();
 
-    // Fit as much as possible into buffer.
+    // 尽可能填入缓冲
     size_t copy_size = std::min(write_size, kWritableFileBufferSize - pos_);
     std::memcpy(buf_ + pos_, write_data, copy_size);
     write_data += copy_size;
@@ -304,13 +305,13 @@ class PosixWritableFile final : public WritableFile {
       return Status::OK();
     }
 
-    // Can't fit in buffer, so need to do at least one write.
+    // 缓冲不足以填入全部数据，则先flush（写盘并清缓冲）腾出空间
     Status status = FlushBuffer();
     if (!status.ok()) {
       return status;
     }
 
-    // Small writes go to buffer, large writes are written directly.
+    // 剩余数据不足一个缓冲大小，则写入缓冲；否则直接写盘
     if (write_size < kWritableFileBufferSize) {
       std::memcpy(buf_, write_data, write_size);
       pos_ = write_size;
@@ -351,12 +352,14 @@ class PosixWritableFile final : public WritableFile {
   }
 
  private:
+  // 将缓冲中的数据落盘，并清空缓冲
   Status FlushBuffer() {
     Status status = WriteUnbuffered(buf_, pos_);
     pos_ = 0;
     return status;
   }
 
+  // 直接将`data`全部落盘到fd_
   Status WriteUnbuffered(const char* data, size_t size) {
     while (size > 0) {
       ssize_t write_result = ::write(fd_, data, size);
