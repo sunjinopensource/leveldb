@@ -26,6 +26,7 @@ class BloomFilterPolicy : public FilterPolicy {
   const char* Name() const override { return "leveldb.BuiltinBloomFilter2"; }
 
   void CreateFilter(const Slice* keys, int n, std::string* dst) const override {
+    //<<< 规格化布隆过滤器的位图长度bits(确保不低于64，且为8的倍数)
     // Compute bloom filter size (in both bits and bytes)
     size_t bits = n * bits_per_key_;
 
@@ -35,6 +36,7 @@ class BloomFilterPolicy : public FilterPolicy {
 
     size_t bytes = (bits + 7) / 8;
     bits = bytes * 8;
+    //>>>
 
     const size_t init_size = dst->size();
     dst->resize(init_size + bytes, 0);
