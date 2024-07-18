@@ -24,14 +24,16 @@ class BytewiseComparatorImpl : public Comparator {
 
   const char* Name() const override { return "leveldb.BytewiseComparator"; }
 
+  // 逐字节比较
   int Compare(const Slice& a, const Slice& b) const override {
     return a.compare(b);
   }
 
   void FindShortestSeparator(std::string* start,
                              const Slice& limit) const override {
-    // Find length of common prefix
     size_t min_length = std::min(start->size(), limit.size());
+
+    // 找到第一个不同的位置（换言之，找到公共前缀）
     size_t diff_index = 0;
     while ((diff_index < min_length) &&
            ((*start)[diff_index] == limit[diff_index])) {
@@ -39,7 +41,7 @@ class BytewiseComparatorImpl : public Comparator {
     }
 
     if (diff_index >= min_length) {
-      // Do not shorten if one string is a prefix of the other
+      // 若一个是另一个的前缀，Do not shorten 
     } else {
       uint8_t diff_byte = static_cast<uint8_t>((*start)[diff_index]);
       if (diff_byte < static_cast<uint8_t>(0xff) &&
