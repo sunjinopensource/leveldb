@@ -84,26 +84,36 @@ void MemTable::Add(SequenceNumber s, ValueType type, const Slice& key,
   size_t key_size = key.size();
   size_t val_size = value.size();
   size_t internal_key_size = key_size + 8;
-  const size_t encoded_len = VarintLength(internal_key_size) +
-                             internal_key_size + VarintLength(val_size) +
-                             val_size;
+  const size_t encoded_len = VarintLength(internal_key_size) + internal_key_size + 
+                             VarintLength(val_size) + val_size;
+  
+  // 分配存储空间
   char* buf = arena_.Allocate(encoded_len);
-  char* p = EncodeVarint32(buf, internal_key_size);
-  std::memcpy(p, key.data(), key_size);
+
+  // 打包InternalKey，序列化后就是LookupKey
+  char* p = EncodeVarint32(buf, internal_key_size);  // pack internal_key_size
+  
+  std::memcpy(p, key.data(), key_size);  // pack internal_key.user_key
   p += key_size;
-  EncodeFixed64(p, (s << 8) | type);
+  
+  EncodeFixed64(p, (s << 8) | type);  // pack internal_key.seq+type
   p += 8;
-  p = EncodeVarint32(p, val_size);
-  std::memcpy(p, value.data(), val_size);
+
+  // 打包value
+  p = EncodeVarint32(p, val_size);   // pack value size
+  
+  std::memcpy(p, value.data(), val_size);  // pack value
   assert(p + val_size == buf + encoded_len);
+
+  // 插入跳表
   table_.Insert(buf);
 }
 
 bool MemTable::Get(const LookupKey& key, std::string* value, Status* s) {
   Slice memkey = key.memtable_key();
   Table::Iterator iter(&table_);
-  iter.Seek(memkey.data());
-  if (iter.Valid()) {
+  iter.Seek(memkey.data());  // 找到第一个 >=
+  if (iter.Valid()) {  // 找到了
     // entry format is:
     //    klength  varint32
     //    userkey  char[klength]
@@ -113,9 +123,11 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s) {
     // Check that it belongs to same user key.  We do not check the
     // sequence number since the Seek() call above should have skipped
     // all entries with overly large sequence numbers.
-    const char* entry = iter.key();
+    const char* entry = iter.key();  
+
     uint32_t key_length;
     const char* key_ptr = GetVarint32Ptr(entry, entry + 5, &key_length);
+
     if (comparator_.comparator.user_comparator()->Compare(
             Slice(key_ptr, key_length - 8), key.user_key()) == 0) {
       // Correct user key

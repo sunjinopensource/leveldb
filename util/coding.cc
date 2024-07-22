@@ -18,16 +18,15 @@ void PutFixed64(std::string* dst, uint64_t value) {
   dst->append(buf, sizeof(buf));
 }
 
-// 每7位保存一个字节，若有后续，则将该字节高位置1
-// 应该类似protobuf
+// 每7位用一个字节保存，若有后续，则将该字节高位置1
+// 最多需要5个字节
 char* EncodeVarint32(char* dst, uint32_t v) {
-  // Operate on characters as unsigneds
   uint8_t* ptr = reinterpret_cast<uint8_t*>(dst);
-  static const int B = 128;
-  if (v < (1 << 7)) {
+  static const int B = 128;  // 1{7个0}
+  if (v < (1 << 7)) { // <1{7个0}，即128
     *(ptr++) = v;
-  } else if (v < (1 << 14)) {
-    *(ptr++) = v | B;  // 1xxxxxxx (1低7位)
+  } else if (v < (1 << 14)) {  // 1{7个0} {7个0}
+    *(ptr++) = v | B;  // 1{v的低7位}
     *(ptr++) = v >> 7;
   } else if (v < (1 << 21)) {
     *(ptr++) = v | B;
@@ -76,6 +75,7 @@ void PutLengthPrefixedSlice(std::string* dst, const Slice& value) {
   dst->append(value.data(), value.size());
 }
 
+// 返回“v”的变长编码的长度
 int VarintLength(uint64_t v) {
   int len = 1;
   while (v >= 128) {
@@ -87,14 +87,23 @@ int VarintLength(uint64_t v) {
 
 const char* GetVarint32PtrFallback(const char* p, const char* limit,
                                    uint32_t* value) {
+
+  // value = 
+  //                          p[0] | 
+  //              p[1] << 7 | 
+  // p[2] << 14 |
+  // ...
+
   uint32_t result = 0;
+  // 遍历p的每个字节
   for (uint32_t shift = 0; shift <= 28 && p < limit; shift += 7) {
     uint32_t byte = *(reinterpret_cast<const uint8_t*>(p));
     p++;
-    if (byte & 128) {
-      // More bytes are present
+
+    // 通过考察最高位是否为1，来检查有无后续字节
+    if (byte & 128) {  // 1，说明有后续
       result |= ((byte & 127) << shift);
-    } else {
+    } else {  // 最高位为0，说明无后续，直接结束
       result |= (byte << shift);
       *value = result;
       return reinterpret_cast<const char*>(p);
@@ -103,6 +112,12 @@ const char* GetVarint32PtrFallback(const char* p, const char* limit,
   return nullptr;
 }
 
+// 供外部用的函数
+// [     input       ]
+// p                 limit
+// value
+//     q
+//     input after
 bool GetVarint32(Slice* input, uint32_t* value) {
   const char* p = input->data();
   const char* limit = p + input->size();
@@ -144,6 +159,7 @@ bool GetVarint64(Slice* input, uint64_t* value) {
   }
 }
 
+// 先解出长度，再按长度解出数据
 bool GetLengthPrefixedSlice(Slice* input, Slice* result) {
   uint32_t len;
   if (GetVarint32(input, &len) && input->size() >= len) {

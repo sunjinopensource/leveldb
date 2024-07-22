@@ -39,7 +39,7 @@ bool GetLengthPrefixedSlice(Slice* input, Slice* result);
 const char* GetVarint32Ptr(const char* p, const char* limit, uint32_t* v);
 const char* GetVarint64Ptr(const char* p, const char* limit, uint64_t* v);
 
-// Returns the length of the varint32 or varint64 encoding of "v"
+// 返回“v”的变长编码的长度
 int VarintLength(uint64_t v);
 
 // Lower-level versions of Put... that write directly into a character buffer
@@ -56,6 +56,9 @@ char* EncodeVarint64(char* dst, uint64_t value);
 //         movl    %esi, (%rdi)
 //         ret
 // memcpy(dst, &value, sizeof(value));产生相同的结果
+//
+// 无论机器字节序是大端还是小端，总是以小端序存储到buffer
+// 假设value=0A0B0C0D，则buffer[0]总是等于0D，无论什么字节序
 inline void EncodeFixed32(char* dst, uint32_t value) {
   uint8_t* const buffer = reinterpret_cast<uint8_t*>(dst);
 
@@ -125,9 +128,11 @@ inline uint64_t DecodeFixed64(const char* ptr) {
 // Internal routine for use by fallback path of GetVarint32Ptr
 const char* GetVarint32PtrFallback(const char* p, const char* limit,
                                    uint32_t* value);
+
 inline const char* GetVarint32Ptr(const char* p, const char* limit,
                                   uint32_t* value) {
   if (p < limit) {
+    // 取p[0]，若最高位为0，则说明没有后续字节了，直接赋值返回
     uint32_t result = *(reinterpret_cast<const uint8_t*>(p));
     if ((result & 128) == 0) {
       *value = result;
