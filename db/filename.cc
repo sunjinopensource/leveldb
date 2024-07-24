@@ -17,29 +17,34 @@ namespace leveldb {
 Status WriteStringToFileSync(Env* env, const Slice& data,
                              const std::string& fname);
 
-static std::string MakeFileName(const std::string& dbname, uint64_t number,
+// dbname/00000n.suffix
+static std::string MakeFileName(const std::string& dbname, uint64_t n,
                                 const char* suffix) {
   char buf[100];
   std::snprintf(buf, sizeof(buf), "/%06llu.%s",
-                static_cast<unsigned long long>(number), suffix);
+                static_cast<unsigned long long>(n), suffix);
   return dbname + buf;
 }
 
+// dbname/00000n.log
 std::string LogFileName(const std::string& dbname, uint64_t number) {
   assert(number > 0);
   return MakeFileName(dbname, number, "log");
 }
 
+// dbname/00000n.ldb
 std::string TableFileName(const std::string& dbname, uint64_t number) {
   assert(number > 0);
   return MakeFileName(dbname, number, "ldb");
 }
 
+// dbname/00000n.sst
 std::string SSTTableFileName(const std::string& dbname, uint64_t number) {
   assert(number > 0);
   return MakeFileName(dbname, number, "sst");
 }
 
+// dbname/MANIFEST-00000n
 std::string DescriptorFileName(const std::string& dbname, uint64_t number) {
   assert(number > 0);
   char buf[100];

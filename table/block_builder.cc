@@ -4,22 +4,17 @@
 //
 // BlockBuilder generates blocks where keys are prefix-compressed:
 //
-// When we store a key, we drop the prefix shared with the previous
-// string.  This helps reduce the space requirement significantly.
-// Furthermore, once every K keys, we do not apply the prefix
-// compression and store the entire key.  We call this a "restart
-// point".  The tail end of the block stores the offsets of all of the
-// restart points, and can be used to do a binary search when looking
-// for a particular key.  Values are stored as-is (without compression)
-// immediately following the corresponding key.
+// 存储key时，我们会删除与前一个字符串共享的前缀，从而减少空间开销。
+// 此外，每 K 个 key，重新存储一次整个 key，称为重启点（restart point）
+// 块的尾端存储所有重启点的偏移量，并用于在查找特定键时进行二分搜索
+// value 按原样存储（不压缩），紧跟在相应 key 后
 //
 // An entry for a particular key-value pair has the form:
-//     shared_bytes: varint32
+//     shared_bytes: varint32，0表示重启点
 //     unshared_bytes: varint32
 //     value_length: varint32
 //     key_delta: char[unshared_bytes]
 //     value: char[value_length]
-// shared_bytes == 0 for restart points.
 //
 // The trailer of the block has the form:
 //     restarts: uint32[num_restarts]
@@ -59,11 +54,13 @@ size_t BlockBuilder::CurrentSizeEstimate() const {
 }
 
 Slice BlockBuilder::Finish() {
-  // Append restart array
+  // 序列化：所有重启点位置
   for (size_t i = 0; i < restarts_.size(); i++) {
     PutFixed32(&buffer_, restarts_[i]);
   }
+  // 序列化：重启点数量
   PutFixed32(&buffer_, restarts_.size());
+  
   finished_ = true;
   return Slice(buffer_);
 }
@@ -76,7 +73,7 @@ void BlockBuilder::Add(const Slice& key, const Slice& value) {
          || options_->comparator->Compare(key, last_key_piece) > 0);
   size_t shared = 0;
   if (counter_ < options_->block_restart_interval) {
-    // See how much sharing to do with previous string
+    // 找出当前key和前一个key的共享前缀
     const size_t min_length = std::min(last_key_piece.size(), key.size());
     while ((shared < min_length) && (last_key_piece[shared] == key[shared])) {
       shared++;

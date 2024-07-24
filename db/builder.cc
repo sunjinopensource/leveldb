@@ -22,24 +22,29 @@ Status BuildTable(const std::string& dbname, Env* env, const Options& options,
 
   std::string fname = TableFileName(dbname, meta->number);
   if (iter->Valid()) {
+    // 创建一个新的写文件
     WritableFile* file;
     s = env->NewWritableFile(fname, &file);
     if (!s.ok()) {
       return s;
     }
 
+    // 创建一个TableBuilder
     TableBuilder* builder = new TableBuilder(options, file);
     meta->smallest.DecodeFrom(iter->key());
+    
+    // 把所有key/value加入builder
     Slice key;
     for (; iter->Valid(); iter->Next()) {
       key = iter->key();
       builder->Add(key, iter->value());
     }
+
     if (!key.empty()) {
       meta->largest.DecodeFrom(key);
     }
 
-    // Finish and check for builder errors
+    // 完成构建
     s = builder->Finish();
     if (s.ok()) {
       meta->file_size = builder->FileSize();

@@ -10,6 +10,10 @@
 // non-const method, all threads accessing the same TableBuilder must use
 // external synchronization.
 
+// TableBuilder 提供用于构建Table（不可变kv map）的接口
+// 多个线程可在没有外部同步的情况下，调用 TableBuilder 的 const 方法
+// 但若任何线程调用非 const 方法，则访问同一 TableBuilder 的所有线程都必须使用外部同步。
+
 #ifndef STORAGE_LEVELDB_INCLUDE_TABLE_BUILDER_H_
 #define STORAGE_LEVELDB_INCLUDE_TABLE_BUILDER_H_
 
