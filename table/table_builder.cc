@@ -42,21 +42,15 @@ struct TableBuilder::Rep {
   Status status;
   BlockBuilder data_block;   // 存储 kv
   BlockBuilder index_block;  // 存储 meta
-  std::string last_key;
+  std::string last_key;  // 上次Add的key
   int64_t num_entries;
   bool closed;  // Either Finish() or Abandon() has been called.
   FilterBlockBuilder* filter_block;
 
-  // We do not emit the index entry for a block until we have seen the
-  // first key for the next data block.  This allows us to use shorter
-  // keys in the index block.  For example, consider a block boundary
-  // between the keys "the quick brown fox" and "the who".  We can use
-  // "the r" as the key for the index block entry since it is >= all
-  // entries in the first block and < all entries in subsequent
-  // blocks.
-  //
-  // Invariant: r->pending_index_entry is true only if data_block is empty.
-  bool pending_index_entry;
+  // 在看到下一个数据块的第一个key之前，不会发出块的索引条目，从而允许在索引块中使用较短的key
+  // eg. 考虑在键“the quick brown fox”和“the who”之间的块边界，可以用“the r”作为索引条目的键
+  // 因为前一个块中的所有条目 <= the r < 后续块中的所有条目
+  bool pending_index_entry;  // 仅当 data_block 为空时，为true
   BlockHandle pending_handle;  // Handle to add to index block
 
   std::string compressed_output;
@@ -99,15 +93,20 @@ void TableBuilder::Add(const Slice& key, const Slice& value) {
     assert(r->options.comparator->Compare(key, Slice(r->last_key)) > 0);
   }
 
-  if (r->pending_index_entry) {
+  // 为上一个数据块添加索引条目
+  if (r->pending_index_entry) {  // 上一个数据块刚结束，新数据块为空，为新块添加第一个key时，生成上一个块的索引
     assert(r->data_block.empty());
+    // 在上一个块的lastkey和新块1stkey之间插值一个key，用于二分
+    // 若lastkey为1stkey子串，直接用lastkey
     r->options.comparator->FindShortestSeparator(&r->last_key, key);
+    
     std::string handle_encoding;
     r->pending_handle.EncodeTo(&handle_encoding);
     r->index_block.Add(r->last_key, Slice(handle_encoding));
     r->pending_index_entry = false;
   }
 
+  // 向filter_block添加key
   if (r->filter_block != nullptr) {
     r->filter_block->AddKey(key);
   }
@@ -136,6 +135,7 @@ void TableBuilder::Flush() {
     r->pending_index_entry = true;
     r->status = r->file->Flush();
   }
+  // 写DataBlock时，同时在FilterBlock中添加一个此DataBlock的Filter
   if (r->filter_block != nullptr) {
     r->filter_block->StartBlock(r->offset);
   }
