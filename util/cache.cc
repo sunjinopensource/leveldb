@@ -43,8 +43,8 @@ namespace {
 // 每个缓存项有一个“in_cache”，表明缓存是否具有该项的引用
 //  在不将条目传递给其“删除器”的情况下，这可能变为 false 的唯一方法是通过 Erase()、在插入具有重复键的元素时通过 Insert() 或在销毁缓存时。
 
-// 缓存有两个链表。缓存项只会在其中一个链表中。客户端仍引用但已从缓存中删除的项不在这两个来链表中。
-// - in-use:  包含客户当前引用的项目，没有特定的顺序。（此链表用于不变检查。如果我们删除检查，则原本位于此链表中的元素可能会保留为断开连接的单例列表。）
+// 缓存有两个链表。缓存项只会在其中一个链表中。客户端仍引用但已从缓存中删除的项不在这两个链表中。
+// - in-use:  包含客户当前引用的项目，没有特定的顺序。（此链表用于不变式检查。如果我们删除检查，则原本位于此链表中的元素可能会保留为断开连接的单例列表。）
 // - LRU:  包含客户端当前未引用的项，按 LRU 顺序 当 Ref() 和 Unref() 方法检测到缓存中的元素获取或丢失其唯一的外部引用时，元素将在这些列表之间移动。
 
 // 缓存项走堆分配，且长度可变，保存在按访问时间排序的循环双向链表
@@ -86,6 +86,8 @@ class HandleTable {
     return *FindPointer(key, hash);
   }
 
+  // 若key不存在，则加到链表末尾，并返回nil
+  // 否则替换旧节点，并返回旧节点
   LRUHandle* Insert(LRUHandle* h) {
     LRUHandle** ptr = FindPointer(h->key(), h->hash);
     LRUHandle* old = *ptr;
@@ -191,6 +193,7 @@ class LRUCache {
   bool FinishErase(LRUHandle* e) EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   // Initialized before use.
+  // 0表示关闭缓存
   size_t capacity_;
 
   // mutex_ protects the following state.
@@ -231,8 +234,8 @@ LRUCache::~LRUCache() {
 
 void LRUCache::Ref(LRUHandle* e) {
   if (e->refs == 1 && e->in_cache) {  // If on lru_ list, move to in_use_ list.
-    LRU_Remove(e);
-    LRU_Append(&in_use_, e);
+    LRU_Remove(e);  // 从原链表删除
+    LRU_Append(&in_use_, e);  // 加入in_use链表
   }
   e->refs++;
 }
@@ -278,6 +281,9 @@ void LRUCache::Release(Cache::Handle* handle) {
   Unref(reinterpret_cast<LRUHandle*>(handle));
 }
 
+// 插入时，先加入in_use_链表尾，并加入hash表
+// 若key已存在，则table_.Insert(e)会返回旧key对应的handle，然后FinishErase会将其从链表中删除
+// 当缓存满时（usage_ > capacity_），从lru_头部淘汰
 Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
                                 size_t charge,
                                 void (*deleter)(const Slice& key,
@@ -301,7 +307,7 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
     LRU_Append(&in_use_, e);
     usage_ += charge;
     FinishErase(table_.Insert(e));
-  } else {  // don't cache. (capacity_==0 is supported and turns off caching.)
+  } else {  // capacity_==0表示关闭缓存
     // next is read by key() in an assert, so it must be initialized
     e->next = nullptr;
   }
@@ -335,6 +341,7 @@ void LRUCache::Erase(const Slice& key, uint32_t hash) {
   FinishErase(table_.Remove(key, hash));
 }
 
+// 将lru中的所有元素删除
 void LRUCache::Prune() {
   MutexLock l(&mutex_);
   while (lru_.next != &lru_) {
