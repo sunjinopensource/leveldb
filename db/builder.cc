@@ -34,9 +34,9 @@ Status BuildTable(const std::string& dbname, Env* env, const Options& options,
 
     // 创建一个TableBuilder
     TableBuilder* builder = new TableBuilder(options, file);
-    meta->smallest.DecodeFrom(iter->key());  // memtable的第一个key
+    meta->smallest.DecodeFrom(iter->key());  // meta记录memtable的第一个key
     
-    // 把所有key/value加入builder
+    // 把所有kv一次性加入TableBuilder
     Slice key;
     for (; iter->Valid(); iter->Next()) {
       key = iter->key();
@@ -44,10 +44,10 @@ Status BuildTable(const std::string& dbname, Env* env, const Options& options,
     }
 
     if (!key.empty()) {
-      meta->largest.DecodeFrom(key);  // memtable的最后一个key
+      meta->largest.DecodeFrom(key);  // meta记录memtable的最后一个key
     }
 
-    // 完成构建
+    // 完成 sst 文件尾部 block 的写入
     s = builder->Finish();
     if (s.ok()) {
       meta->file_size = builder->FileSize();
