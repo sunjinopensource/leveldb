@@ -526,8 +526,7 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
   delete iter;
   pending_outputs_.erase(meta.number);
 
-  // Note that if file_size is zero, the file has been deleted and
-  // should not be added to the manifest.
+  // 注意：若 file_size 为0，则该文件已被删除，不应加到manifest
   int level = 0;
   if (s.ok() && meta.file_size > 0) {
     const Slice min_user_key = meta.smallest.user_key();
@@ -535,8 +534,7 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
     if (base != nullptr) {
       level = base->PickLevelForMemTableOutput(min_user_key, max_user_key);
     }
-    edit->AddFile(level, meta.number, meta.file_size, meta.smallest,
-                  meta.largest);
+    edit->AddFile(level, meta.number, meta.file_size, meta.smallest, meta.largest);
   }
 
   CompactionStats stats;
@@ -1116,11 +1114,14 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
                    std::string* value) {
   Status s;
   MutexLock l(&mutex_);
+
+  // 使用请求的版本号或最高版本号
   SequenceNumber snapshot;
   if (options.snapshot != nullptr) {
-    snapshot =
-        static_cast<const SnapshotImpl*>(options.snapshot)->sequence_number();
+    // 特定版本
+    snapshot = static_cast<const SnapshotImpl*>(options.snapshot)->sequence_number();
   } else {
+    // 最新版本
     snapshot = versions_->LastSequence();
   }
 
@@ -1137,7 +1138,8 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
   // Unlock while reading from files and memtables
   {
     mutex_.Unlock();
-    // First look in the memtable, then in the immutable memtable (if any).
+    // 先查 memtable
+    // 再查 immutable memtable (若存在)    
     LookupKey lkey(key, snapshot);
     if (mem->Get(lkey, value, &s)) {
       // Done
@@ -1329,32 +1331,25 @@ Status DBImpl::MakeRoomForWrite(bool force) {
   Status s;
   while (true) {
     if (!bg_error_.ok()) {
-      // Yield previous error
+      // 已出错，直接返回此错误
       s = bg_error_;
       break;
-    } else if (allow_delay && versions_->NumLevelFiles(0) >=
-                                  config::kL0_SlowdownWritesTrigger) {
-      // We are getting close to hitting a hard limit on the number of
-      // L0 files.  Rather than delaying a single write by several
-      // seconds when we hit the hard limit, start delaying each
-      // individual write by 1ms to reduce latency variance.  Also,
-      // this delay hands over some CPU to the compaction thread in
-      // case it is sharing the same core as the writer.
+    } else if (allow_delay && versions_->NumLevelFiles(0) >= config::kL0_SlowdownWritesTrigger) {
+      // L0 文件数达到硬限制时，不再将单个写入延迟几秒钟，而是开始将每个单独的写入延迟 1 毫秒，以减少延迟差异
+      // 此外，这种延迟会将一些 CPU 移交给压缩线程，以防它与 writer 共享相同的核心
+      // 如果是则释放锁、等待 1 毫秒、再等待锁，并且不允许再次等待；
       mutex_.Unlock();
-      env_->SleepForMicroseconds(1000);
-      allow_delay = false;  // Do not delay a single write more than once
+      env_->SleepForMicroseconds(1000);  // 休眠 1ms
+      allow_delay = false;  // 下次迭代不再等待
       mutex_.Lock();
-    } else if (!force &&
-               (mem_->ApproximateMemoryUsage() <= options_.write_buffer_size)) {
-      // There is room in current memtable
+    } else if (!force && mem_->ApproximateMemoryUsage() <= options_.write_buffer_size) {
+      // 当前memtable仍有空间
       break;
     } else if (imm_ != nullptr) {
-      // We have filled up the current memtable, but the previous
-      // one is still being compacted, so we wait.
-      Log(options_.info_log, "Current memtable full; waiting...\n");
+      // 当前memtable已填满，但之前的memtable还在压缩中，所以等待
       background_work_finished_signal_.Wait();
     } else if (versions_->NumLevelFiles(0) >= config::kL0_StopWritesTrigger) {
-      // There are too many level-0 files.
+      // level-0 文件太多了
       Log(options_.info_log, "Too many L0 files; waiting...\n");
       background_work_finished_signal_.Wait();
     } else {

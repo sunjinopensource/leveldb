@@ -14,6 +14,7 @@
 
 namespace leveldb {
 
+// 将memtable落地为sst文件，并输出meta信息（包含文件大小等信息）
 Status BuildTable(const std::string& dbname, Env* env, const Options& options,
                   TableCache* table_cache, Iterator* iter, FileMetaData* meta) {
   Status s;
@@ -31,7 +32,7 @@ Status BuildTable(const std::string& dbname, Env* env, const Options& options,
 
     // 创建一个TableBuilder
     TableBuilder* builder = new TableBuilder(options, file);
-    meta->smallest.DecodeFrom(iter->key());
+    meta->smallest.DecodeFrom(iter->key());  // memtable的第一个key
     
     // 把所有key/value加入builder
     Slice key;
@@ -41,7 +42,7 @@ Status BuildTable(const std::string& dbname, Env* env, const Options& options,
     }
 
     if (!key.empty()) {
-      meta->largest.DecodeFrom(key);
+      meta->largest.DecodeFrom(key);  // memtable的最后一个key
     }
 
     // 完成构建
