@@ -14,8 +14,10 @@
 
 namespace leveldb {
 
-// 将memtable落地为sst文件，并输出meta信息（包含文件大小等信息）
-Status BuildTable(const std::string& dbname, Env* env, const Options& options,
+// 通过 MemTable(iter) 落地为 sst 文件，并输出 meta 信息（如 文件大小等
+// 文件按meta->number命名
+// 若 iter 为空，则 meta->file_size 置0，且不生成 sst 文件
+Status BuildTable(const std::string& dbname, Env* env, const Options& options, 
                   TableCache* table_cache, Iterator* iter, FileMetaData* meta) {
   Status s;
   meta->file_size = 0;
