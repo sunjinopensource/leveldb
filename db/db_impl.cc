@@ -506,8 +506,10 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
                                 Version* base) {
   mutex_.AssertHeld();
   const uint64_t start_micros = env_->NowMicros();
+  
   FileMetaData meta;
   meta.number = versions_->NewFileNumber();
+
   pending_outputs_.insert(meta.number);
   Iterator* iter = mem->NewIterator();
   Log(options_.info_log, "Level-0 table #%llu: started",
@@ -691,8 +693,7 @@ void DBImpl::BackgroundCall() {
 
   background_compaction_scheduled_ = false;
 
-  // Previous compaction may have produced too many files in a level,
-  // so reschedule another compaction if needed.
+  // 先前的压缩可能在一个级别中生成了太多文件，因此如果需要，重新安排另一次压缩
   MaybeScheduleCompaction();
   background_work_finished_signal_.SignalAll();
 }
