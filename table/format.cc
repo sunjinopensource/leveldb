@@ -66,6 +66,7 @@ Status Footer::DecodeFrom(Slice* input) {
   return result;
 }
 
+// 根据BlockHandle，从文件file中读出Block的数据，输出到result
 Status ReadBlock(RandomAccessFile* file, const ReadOptions& options,
                  const BlockHandle& handle, BlockContents* result) {
   result->data = Slice();
@@ -87,7 +88,7 @@ Status ReadBlock(RandomAccessFile* file, const ReadOptions& options,
     return Status::Corruption("truncated block read");
   }
 
-  // Check the crc of the type and the block contents
+  // 检查crc(内容+type)
   const char* data = contents.data();  // Pointer to where Read put the data
   if (options.verify_checksums) {
     const uint32_t crc = crc32c::Unmask(DecodeFixed32(data + n + 1));
@@ -99,6 +100,7 @@ Status ReadBlock(RandomAccessFile* file, const ReadOptions& options,
     }
   }
 
+  // 解压数据
   switch (data[n]) {
     case kNoCompression:
       if (data != buf) {

@@ -1116,7 +1116,7 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
   Status s;
   MutexLock l(&mutex_);
 
-  // 使用请求的版本号或最高版本号
+  // 根据options决定版本号
   SequenceNumber snapshot;
   if (options.snapshot != nullptr) {
     // 特定版本
@@ -1139,15 +1139,14 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
   // Unlock while reading from files and memtables
   {
     mutex_.Unlock();
-    // 先查 memtable
-    // 再查 immutable memtable (若存在)    
+    
     LookupKey lkey(key, snapshot);
-    if (mem->Get(lkey, value, &s)) {
+    if (mem->Get(lkey, value, &s)) {  // 先查 memtable
       // Done
-    } else if (imm != nullptr && imm->Get(lkey, value, &s)) {
+    } else if (imm != nullptr && imm->Get(lkey, value, &s)) {  // 再查 immutable memtable (若存在)
       // Done
     } else {
-      s = current->Get(options, lkey, value, &stats);
+      s = current->Get(options, lkey, value, &stats);  // 最后查文件
       have_stat_update = true;
     }
     mutex_.Lock();

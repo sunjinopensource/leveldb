@@ -52,11 +52,8 @@ struct LEVELDB_EXPORT Options {
   // If true, an error is raised if the database already exists.
   bool error_if_exists = false;
 
-  // If true, the implementation will do aggressive checking of the
-  // data it is processing and will stop early if it detects any
-  // errors.  This may have unforeseen ramifications: for example, a
-  // corruption of one DB entry may cause a large number of entries to
-  // become unreadable or for the entire DB to become unopenable.
+  // 若为 true，则实现将对其正在处理的数据进行检查，检测到任何错误，将提前停止。 
+  // 这可能会产生不可预见的后果：如，一个数据库条目的损坏可能会导致大量条目变得不可读或整个数据库变得无法打开
   bool paranoid_checks = false;
 
   // Use the specified object to interact with the environment,

@@ -286,6 +286,8 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
   // Search level-0 in order from newest to oldest.
   std::vector<FileMetaData*> tmp;
   tmp.reserve(files_[0].size());
+
+  // 在0层文件中，找出所有可能包含key的文件，输出到tmp
   for (uint32_t i = 0; i < files_[0].size(); i++) {
     FileMetaData* f = files_[0][i];
     if (ucmp->Compare(user_key, f->smallest.user_key()) >= 0 &&
@@ -293,8 +295,12 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
       tmp.push_back(f);
     }
   }
+
   if (!tmp.empty()) {
+    // 排序tmp中的文件，新文件在前
     std::sort(tmp.begin(), tmp.end(), NewestFirst);
+
+    // 依次在每个文件中查找
     for (uint32_t i = 0; i < tmp.size(); i++) {
       if (!(*func)(arg, 0, tmp[i])) {
         return;
@@ -1029,31 +1035,19 @@ void VersionSet::MarkFileNumberUsed(uint64_t number) {
 }
 
 void VersionSet::Finalize(Version* v) {
-  // Precomputed best level for next compaction
+  // 计算每一级的评分，决定下次压缩的level
   int best_level = -1;
   double best_score = -1;
-
   for (int level = 0; level < config::kNumLevels - 1; level++) {
     double score;
     if (level == 0) {
-      // We treat level-0 specially by bounding the number of files
-      // instead of number of bytes for two reasons:
-      //
-      // (1) With larger write-buffer sizes, it is nice not to do too
-      // many level-0 compactions.
-      //
-      // (2) The files in level-0 are merged on every read and
-      // therefore we wish to avoid too many files when the individual
-      // file size is small (perhaps because of a small write-buffer
-      // setting, or very high compression ratios, or lots of
-      // overwrites/deletions).
-      score = v->files_[level].size() /
-              static_cast<double>(config::kL0_CompactionTrigger);
+      // 限制文件数而非字节数来特殊对待 0 级，原因如下：
+      // (1) 对于较大的写缓冲区，最好不要进行太多的 0 级压缩
+      // (2) level-0 文件每次读都会合并，因此当单文件较小时（可能因为写缓冲较小，或高压缩比，或大量文件覆写/删除），我们希望避免太多文件
+      score = v->files_[level].size() / static_cast<double>(config::kL0_CompactionTrigger);
     } else {
-      // Compute the ratio of current size to size limit.
       const uint64_t level_bytes = TotalFileSize(v->files_[level]);
-      score =
-          static_cast<double>(level_bytes) / MaxBytesForLevel(options_, level);
+      score = static_cast<double>(level_bytes) / MaxBytesForLevel(options_, level);
     }
 
     if (score > best_score) {
@@ -1253,11 +1247,11 @@ Compaction* VersionSet::PickCompaction() {
   Compaction* c;
   int level;
 
-  // We prefer compactions triggered by too much data in a level over
-  // the compactions triggered by seeks.
+  // 触发压缩的时机：a.某levle中数据太多 b.搜索(seek) 
+  // 我们更倾向a
   const bool size_compaction = (current_->compaction_score_ >= 1);
   const bool seek_compaction = (current_->file_to_compact_ != nullptr);
-  if (size_compaction) {
+  if (size_compaction) {  // 数据太多
     level = current_->compaction_level_;
     assert(level >= 0);
     assert(level + 1 < config::kNumLevels);
