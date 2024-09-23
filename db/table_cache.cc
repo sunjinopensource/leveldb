@@ -38,8 +38,7 @@ TableCache::TableCache(const std::string& dbname, const Options& options,
 
 TableCache::~TableCache() { delete cache_; }
 
-Status TableCache::FindTable(uint64_t file_number, uint64_t file_size,
-                             Cache::Handle** handle) {
+Status TableCache::FindTable(uint64_t file_number, uint64_t file_size, Cache::Handle** handle) {
   // 以file_number为key查找
   Status s;
   char buf[sizeof(file_number)];
@@ -47,32 +46,34 @@ Status TableCache::FindTable(uint64_t file_number, uint64_t file_size,
   Slice key(buf, sizeof(buf));
   *handle = cache_->Lookup(key);
 
-  if (*handle == nullptr) {  // 缓存找不到
-    std::string fname = TableFileName(dbname_, file_number);
-    RandomAccessFile* file = nullptr;
-    Table* table = nullptr;
-    s = env_->NewRandomAccessFile(fname, &file);
-    if (!s.ok()) {
-      std::string old_fname = SSTTableFileName(dbname_, file_number);
-      if (env_->NewRandomAccessFile(old_fname, &file).ok()) {
-        s = Status::OK();
-      }
-    }
-    if (s.ok()) {
-      s = Table::Open(options_, file, file_size, &table);
-    }
+  if (*handle != nullptr) {  // 找到
+    return s;
+  }
 
-    if (!s.ok()) {
-      assert(table == nullptr);
-      delete file;
-      // We do not cache error results so that if the error is transient,
-      // or somebody repairs the file, we recover automatically.
-    } else {
-      TableAndFile* tf = new TableAndFile;
-      tf->file = file;
-      tf->table = table;
-      *handle = cache_->Insert(key, tf, 1, &DeleteEntry);
+  std::string fname = TableFileName(dbname_, file_number);
+  RandomAccessFile* file = nullptr;
+  Table* table = nullptr;
+  s = env_->NewRandomAccessFile(fname, &file);
+  if (!s.ok()) {
+    std::string old_fname = SSTTableFileName(dbname_, file_number);
+    if (env_->NewRandomAccessFile(old_fname, &file).ok()) {
+      s = Status::OK();
     }
+  }
+  if (s.ok()) {
+    s = Table::Open(options_, file, file_size, &table);
+  }
+
+  if (!s.ok()) {
+    assert(table == nullptr);
+    delete file;
+    // We do not cache error results so that if the error is transient,
+    // or somebody repairs the file, we recover automatically.
+  } else {
+    TableAndFile* tf = new TableAndFile;
+    tf->file = file;
+    tf->table = table;
+    *handle = cache_->Insert(key, tf, 1, &DeleteEntry);
   }
   return s;
 }
