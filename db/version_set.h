@@ -310,8 +310,7 @@ class VersionSet {
   Version dummy_versions_;  // Head of circular doubly-linked list of versions.
   Version* current_;        // == dummy_versions_.prev_
 
-  // Per-level key at which the next compaction at that level should start.
-  // Either an empty string, or a valid InternalKey.
+  // 每个级别下次压缩应开始的key：空字符串或有效的 InternalKey
   std::string compact_pointer_[config::kNumLevels];
 };
 
