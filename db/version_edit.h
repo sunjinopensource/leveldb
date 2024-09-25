@@ -96,7 +96,7 @@ class VersionEdit {
   bool has_next_file_number_;
   bool has_last_sequence_;
 
-  std::vector<std::pair<int, InternalKey>> compact_pointers_;
+  std::vector<std::pair<int/*level*/, InternalKey>> compact_pointers_;
   DeletedFileSet deleted_files_;
   std::vector<std::pair<int, FileMetaData>> new_files_;
 };

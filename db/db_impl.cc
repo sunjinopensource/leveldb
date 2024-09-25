@@ -728,13 +728,12 @@ void DBImpl::BackgroundCompaction() {
   Status status;
   if (c == nullptr) {
     // Nothing to do
-  } else if (!is_manual && c->IsTrivialMove()) {
-    // Move file to next level
+  } else if (!is_manual && c->IsTrivialMove()) { // 简单地把文件移到下一级
     assert(c->num_input_files(0) == 1);
     FileMetaData* f = c->input(0, 0);
+    // 只需在逻辑层面处理：VersionEdit在level中删除目标文件，level+1中增加目标文件
     c->edit()->RemoveFile(c->level(), f->number);
-    c->edit()->AddFile(c->level() + 1, f->number, f->file_size, f->smallest,
-                       f->largest);
+    c->edit()->AddFile(c->level() + 1, f->number, f->file_size, f->smallest, f->largest);
     status = versions_->LogAndApply(c->edit(), &mutex_);
     if (!status.ok()) {
       RecordBackgroundError(status);
