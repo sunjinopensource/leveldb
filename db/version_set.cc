@@ -1244,7 +1244,7 @@ Compaction* VersionSet::PickCompaction() {
   int level;
 
   // 触发压缩的时机：a.某levle中数据太多 b.搜索(seek) 
-  // 我们更倾向a
+  // 我们更倾向a（即先测试size_compaction）
   const bool size_compaction = (current_->compaction_score_ >= 1);
   const bool seek_compaction = (current_->file_to_compact_ != nullptr);
   if (size_compaction) {  // 数据太多
